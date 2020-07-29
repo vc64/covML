@@ -1,0 +1,42 @@
+---
+title: "Corona Time"
+output: html_notebook
+---
+
+
+```{r}
+rdata <- readRDS(file="covdata/GSM4557327_555_1_cell.counts.matrices.rds", refhook = NULL)
+
+
+```
+
+```{r}
+
+datalist = list()
+
+for (n in list.files("covdata")) {
+  datalist[[substr(n, 1, 10)]] <- readRDS(file=paste("covdata/", n, sep=""), refhook = NULL)
+}
+```
+
+
+
+```{r}
+class(rdata)
+```
+
+
+```{r}
+image(rdata$exon)
+
+```
+
+
+```{r}
+
+pnames <- datalist$GSM4557327$exon@Dimnames[[1]]
+
+gnames <- datalist$GSM4557327$exon@Dimnames[[2]]
+
+```
+
