@@ -3,40 +3,324 @@ title: "Corona Time"
 output: html_notebook
 ---
 
-
 ```{r}
-rdata <- readRDS(file="covdata/GSM4557327_555_1_cell.counts.matrices.rds", refhook = NULL)
-
+library(Seurat)
+library(dplyr)
+library(Matrix)
 
 ```
+
+
+Load a sample for experimenting and figuring things out
+```{r}
+rdata <- readRDS(file="covdata/GSM4557327_555_1_cell.counts.matrices.rds", refhook = NULL)
+```
+
+
 
 ```{r}
 
 datalist = list()
 
+index <- 1
+
+key <- list()
+
+gnames <- list()
+
+sampnames <- character(13)
+
+
+
+
 for (n in list.files("covdata")) {
-  datalist[[substr(n, 1, 10)]] <- readRDS(file=paste("covdata/", n, sep=""), refhook = NULL)
+  
+  
+  patient <- readRDS(file=paste("covdata/", n, sep=""), refhook = NULL)
+  
+  patient <- patient$exon
+  
+  sample <- substr(n, 1, 10)
+  
+  sampnames[index] <- sample
+  
+  
+  key[[letters[index]]] <- sample
+  
+  
+  #cnamesedit <- character(length(patient$exon@Dimnames[[2]]))
+  
+  
+  # for (i in 1:length(patient$exon@Dimnames[[2]])) {
+  #   cnamesedit[i] <- paste(letters[index], patient$exon@Dimnames[[2]][i], sep = "")
+  # }
+  
+  
+  patient@Dimnames[[2]] <- gsub("(^[ATCG]{12}$)", paste0(letters[index], "\\1"), patient@Dimnames[[2]])
+  
+  
+  
+  gnames[[index]] <- patient@Dimnames[[1]]
+  
+  
+  
+  datalist[[sample]] <- patient
+  
+  index <- index + 1
 }
 ```
 
 
 
 ```{r}
-class(rdata)
+
+
+allgnames <- Reduce(intersect, gnames)
+sindex <- 1
+
+for (sample in datalist) {
+  indices <- match(allgnames, sample@Dimnames[[1]])
+  
+  datalist[[sampnames[sindex]]] <- sample[indices,]
+  
+  #e <- sample[indices,]
+  
+  sindex <- sindex + 1
+}
+
+#gnames <- datalist$GSM4557327@Dimnames[[1]]
+
+#mnames <- datalist$GSM4557327@Dimnames[[2]]
+
+
 ```
 
 
 ```{r}
-image(rdata$exon)
+
+alldata <- do.call(cbind, datalist)
+
+
+###
+saveRDS(alldata, file = "alldata.rds")
+###
+
+```
+
+
+
+```{r}
+# exongenes <- rdata$exon@Dimnames[[1]]
+# introngenes <- rdata$intron@Dimnames[[1]]
+# spanninggenes <- rdata$spanning@Dimnames[[1]]
+# 
+# 
+# 
+# exons <- datalist$GSM4557327@x
+
+
+
 
 ```
 
 
 ```{r}
+counts_per_cell <- Matrix::colSums(alldata)
+counts_per_gene <- Matrix::rowSums(alldata)
 
-pnames <- datalist$GSM4557327$exon@Dimnames[[1]]
+genes_per_cell <- Matrix::colSums(alldata>0)
+cells_per_gene <- Matrix::rowSums(alldata>0)
 
-gnames <- datalist$GSM4557327$exon@Dimnames[[2]]
+
+length(which((counts_per_cell == genes_per_cell) %in% TRUE))
 
 ```
+
+
+```{r}
+geneplot <- plot(sort(genes_per_cell), xlab='cell', log='y', main='genes per cell (ordered)')
+
+genecellplot <- plot(sort(cells_per_gene), xlab='gene', log='y', main='cells per gene (ordered)')
+
+geneplot
+genecellplot
+
+abline(h = 100, col = "red")
+abline(h = 3000, col = "red")
+abline(h = 1750, col = "red")
+```
+
+
+```{r}
+
+#counts_per_cell <- Matrix::colSums(alldata)
+
+###genes_per_cell <- Matrix::colSums(alldata[,16833:16834]>0)  
+###16833 is a point on the strange line of points along line y = x
+
+#genes_per_cell <- Matrix::colSums(alldata>0)
+
+###plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1, xlim = c(0,20000), ylim = c(0, 5000))
+
+#plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1, log = "xy")
+
+
+#abline(a = 0, b = 1, col = "blue")
+
+```
+
+
+
+```{r}
+
+hist(counts_per_cell+1,main='counts per cell',col='wheat')
+hist(genes_per_cell+1, main='genes per cell', col='wheat')
+plot(counts_per_cell, genes_per_cell, col='wheat')
+title('counts vs genes per cell')
+
+hist(log10(counts_per_cell+1),main='counts per cell',col='wheat', breaks = 50, xlim = c(1.95, 3.0))
+hist(log10(genes_per_cell+1), main='genes per cell', col='wheat', breaks = 50, xlim = c(1.85, 3.75))
+#plot(counts_per_cell, genes_per_cell, log='xy', col=as.factor(substring(names(counts_per_cell), 1,1)), cex=1)
+plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1)
+title('counts vs genes per cell')
+plot(cells_per_gene, counts_per_gene, log="xy", cex=1)
+
+3528
+```
+
+
+
+```{r}
+seur <- CreateSeuratObject(counts = datalist$GSM4557327, project = "covidsc", min.cells = 5, min.features = 100)
+
+#max ncount 12500
+#min ncount 125
+#max nfeature 2500
+#min nfeature 200
+
+#nfeatures = number of genes expressed by each cell
+#ncounts = number of total molecules in a cell
+```
+
+```{r}
+seur[["percent.mt"]] <- PercentageFeatureSet(seur, pattern = "^MT-")
+
+VlnPlot(seur, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+```
+
+```{r}
+plot1 <- FeatureScatter(seur, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(seur, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+plot1
+plot2
+
+```
+
+```{r}
+mtplot <- plot(sort(seur$percent.mt), xlab='% mito', log='y', main='mito percent per cell (ordered)')
+```
+
+
+
+```{r}
+seur <- subset(seur, subset = 
+                 nCount_RNA > 125 
+               & nCount_RNA < 12500 
+               & nFeature_RNA > 150 
+               & nFeature_RNA < 2500 
+               & percent.mt < 10)
+
+
+#seur <- subset(seur, subset = nCount_RNA > 125 & nCount_RNA < 12500 & percent.mt < 5)
+
+#16199 
+#ncount min - 15916 | dif 283
+#ncount max - 15904 | dif 12
+#nfeature min - 10082 | dif 5822
+#nfeature max - 9996 | dif 86
+#mito - 8711 | dif 1287
+
+```
+
+
+
+
+```{r}
+seur <- NormalizeData(seur, normalization.method = "LogNormalize", scale.factor = 10000)
+```
+
+
+```{r}
+seur <- FindVariableFeatures(seur, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(seur), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(seur)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+
+```
+
+```{r}
+
+#todo
+#understand what is going on
+#research and figure out good high low cut offs for noise
+#fix code below and fine tune to fit covid data
+
+all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc, features = all.genes)
+```
+
+
+```{r}
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+```
+
+```{r}
+print(pbmc[["pca"]], dims = 1:5, nfeatures = 5)
+```
+
+```{r}
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+```
+
+```{r}
+DimPlot(pbmc, reduction = "pca")
+```
+
+```{r}
+DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
+```
+
+```{r}
+DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+```{r}
+ElbowPlot(pbmc)
+```
+
+
+
+```{r}
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+```
+
+
+```{r}
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+
+DimPlot(pbmc, reduction = "umap")
+```
+
+
+
+
+
+
+
 
