@@ -8,6 +8,8 @@ library(Seurat)
 library(dplyr)
 library(Matrix)
 
+set.seed(6112)
+
 ```
 
 
@@ -107,7 +109,7 @@ saveRDS(alldata, file = "alldata.rds")
 
 ```
 
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ```{r}
 # exongenes <- rdata$exon@Dimnames[[1]]
@@ -124,6 +126,7 @@ saveRDS(alldata, file = "alldata.rds")
 ```
 
 
+Calculate different aspects of data to help determine data cut offs
 ```{r}
 counts_per_cell <- Matrix::colSums(alldata)
 counts_per_gene <- Matrix::rowSums(alldata)
@@ -140,14 +143,14 @@ length(which((counts_per_cell == genes_per_cell) %in% TRUE))
 ```{r}
 geneplot <- plot(sort(genes_per_cell), xlab='cell', log='y', main='genes per cell (ordered)')
 
-genecellplot <- plot(sort(cells_per_gene), xlab='gene', log='y', main='cells per gene (ordered)')
-
-geneplot
-genecellplot
-
 abline(h = 100, col = "red")
 abline(h = 3000, col = "red")
 abline(h = 1750, col = "red")
+
+
+genecellplot <- plot(sort(cells_per_gene), xlab='gene', log='y', main='cells per gene (ordered)')
+
+
 ```
 
 
@@ -178,20 +181,30 @@ hist(genes_per_cell+1, main='genes per cell', col='wheat')
 plot(counts_per_cell, genes_per_cell, col='wheat')
 title('counts vs genes per cell')
 
-hist(log10(counts_per_cell+1),main='counts per cell',col='wheat', breaks = 50, xlim = c(1.95, 3.0))
-hist(log10(genes_per_cell+1), main='genes per cell', col='wheat', breaks = 50, xlim = c(1.85, 3.75))
-#plot(counts_per_cell, genes_per_cell, log='xy', col=as.factor(substring(names(counts_per_cell), 1,1)), cex=1)
-plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1)
+hist(log10(counts_per_cell+1),main='counts per cell',col='wheat', breaks = 50)
+hist(log10(genes_per_cell+1), main='genes per cell', col='wheat', breaks = 50)
+plot(counts_per_cell, genes_per_cell, log='xy', col=as.factor(substring(names(counts_per_cell), 1,1)), cex=1)
+#plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1)
 title('counts vs genes per cell')
-plot(cells_per_gene, counts_per_gene, log="xy", cex=1)
+#plot(cells_per_gene, counts_per_gene, log="xy", cex=1)
+```
 
-3528
+Create patient metadata dataframe
+```{r}
+
+status <- gsub("^[a-g]{1}[ATCG]{12}$", "covid", alldata@Dimnames[[2]])
+
+status <- gsub("^[h-m]{1}[ATCG]{12}$", "healthy", status)
+
+
+meta <- data.frame("status" = status, row.names = alldata@Dimnames[[2]])
+
 ```
 
 
-
+Create Seurat object
 ```{r}
-seur <- CreateSeuratObject(counts = datalist$GSM4557327, project = "covidsc", min.cells = 5, min.features = 100)
+seur <- CreateSeuratObject(counts = alldata, project = "covidsc", min.cells = 5, min.features = 100, meta.data = meta)
 
 #max ncount 12500
 #min ncount 125
@@ -208,6 +221,7 @@ seur[["percent.mt"]] <- PercentageFeatureSet(seur, pattern = "^MT-")
 VlnPlot(seur, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 ```
 
+
 ```{r}
 plot1 <- FeatureScatter(seur, feature1 = "nCount_RNA", feature2 = "percent.mt")
 plot2 <- FeatureScatter(seur, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
@@ -217,12 +231,16 @@ plot2
 
 ```
 
+
+
+
+Abnormally large amounts of mitochondria likely means cell is dying (mitochondrial contamination)
 ```{r}
 mtplot <- plot(sort(seur$percent.mt), xlab='% mito', log='y', main='mito percent per cell (ordered)')
 ```
 
 
-
+Apply cut offs to reduce outliers
 ```{r}
 seur <- subset(seur, subset = 
                  nCount_RNA > 125 
@@ -244,24 +262,53 @@ seur <- subset(seur, subset =
 ```
 
 
+```{r}
+#alldata - 150370 cells
+#seur initial - 139196 cells
+#seur after subset - 84328 cells
+```
 
 
+```{r}
+plot3 <- FeatureScatter(seur, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+plot3
+```
+
+
+
+
+Normalize the data with default methods
 ```{r}
 seur <- NormalizeData(seur, normalization.method = "LogNormalize", scale.factor = 10000)
 ```
 
 
+
+
+
+
+
+
 ```{r}
 seur <- FindVariableFeatures(seur, selection.method = "vst", nfeatures = 2000)
 
-# Identify the 10 most highly variable genes
+length(VariableFeatures(seur))
+
+
 top10 <- head(VariableFeatures(seur), 10)
 
-# plot variable features with and without labels
-plot1 <- VariableFeaturePlot(seur)
-plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+
+varplot <- VariableFeaturePlot(seur)
+varplot2 <- LabelPoints(plot = varplot, points = top10, repel = TRUE)
+
+varplot
+varplot2
 
 ```
+
+#####################################
+
 
 ```{r}
 
