@@ -109,7 +109,7 @@ saveRDS(alldata, file = "alldata.rds")
 
 ```
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 ```{r}
 # exongenes <- rdata$exon@Dimnames[[1]]
@@ -134,14 +134,23 @@ counts_per_gene <- Matrix::rowSums(alldata)
 genes_per_cell <- Matrix::colSums(alldata>0)
 cells_per_gene <- Matrix::rowSums(alldata>0)
 
+gene_count_ratio <- genes_per_cell / counts_per_cell
 
-length(which((counts_per_cell == genes_per_cell) %in% TRUE))
+
+edited_cell_counts <- counts_per_cell[-which(gene_count_ratio > 0.92)]
+edited_cell_genes <- genes_per_cell[-which(gene_count_ratio > 0.92)]
+
+edited_gene_count_ratio <- edited_cell_genes / edited_cell_counts
+
+editdata <- alldata[,-which(gene_count_ratio > 0.92)]
 
 ```
 
 
 ```{r}
 geneplot <- plot(sort(genes_per_cell), xlab='cell', log='y', main='genes per cell (ordered)')
+
+geneplotedit <- plot(sort(edited_cell_genes), xlab='cell', log='y', main='genes per cell (ordered)')
 
 abline(h = 100, col = "red")
 abline(h = 3000, col = "red")
@@ -152,6 +161,12 @@ genecellplot <- plot(sort(cells_per_gene), xlab='gene', log='y', main='cells per
 
 
 ```
+
+```{r}
+plot(gene_count_ratio)
+plot(edited_gene_count_ratio)
+```
+
 
 
 ```{r}
@@ -165,26 +180,32 @@ genecellplot <- plot(sort(cells_per_gene), xlab='gene', log='y', main='cells per
 
 ###plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1, xlim = c(0,20000), ylim = c(0, 5000))
 
-#plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1, log = "xy")
+plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1, log = "xy")
 
 
-#abline(a = 0, b = 1, col = "blue")
+abline(a = 0, b = 1, col = "blue")
 
+```
+
+
+```{r}
+plot(edited_cell_counts, edited_cell_genes, log="xy")
 ```
 
 
 
 ```{r}
-
-hist(counts_per_cell+1,main='counts per cell',col='wheat')
-hist(genes_per_cell+1, main='genes per cell', col='wheat')
-plot(counts_per_cell, genes_per_cell, col='wheat')
-title('counts vs genes per cell')
-
 hist(log10(counts_per_cell+1),main='counts per cell',col='wheat', breaks = 50)
 hist(log10(genes_per_cell+1), main='genes per cell', col='wheat', breaks = 50)
 plot(counts_per_cell, genes_per_cell, log='xy', col=as.factor(substring(names(counts_per_cell), 1,1)), cex=1)
 #plot(counts_per_cell, genes_per_cell, col=as.factor(c(rep(1, length(counts_per_cell)), rep(2,))), cex=1)
+title('counts vs genes per cell')
+
+
+hist(log10(edited_cell_counts+1),main='counts per cell',col='wheat', breaks = 50)
+hist(log10(edited_cell_genes+1), main='genes per cell', col='wheat', breaks = 50)
+plot(edited_cell_counts, edited_cell_genes, log='xy', col=as.factor(substring(names(edited_cell_counts), 1,1)), cex=1)
+
 title('counts vs genes per cell')
 #plot(cells_per_gene, counts_per_gene, log="xy", cex=1)
 ```
@@ -192,19 +213,19 @@ title('counts vs genes per cell')
 Create patient metadata dataframe
 ```{r}
 
-status <- gsub("^[a-g]{1}[ATCG]{12}$", "covid", alldata@Dimnames[[2]])
+status <- gsub("^[a-g]{1}[ATCG]{12}$", "covid", editdata@Dimnames[[2]])
 
 status <- gsub("^[h-m]{1}[ATCG]{12}$", "healthy", status)
 
 
-meta <- data.frame("status" = status, row.names = alldata@Dimnames[[2]])
+meta <- data.frame("status" = status, row.names = editdata@Dimnames[[2]])
 
 ```
 
 
 Create Seurat object
 ```{r}
-seur <- CreateSeuratObject(counts = alldata, project = "covidsc", min.cells = 5, min.features = 100, meta.data = meta)
+seur <- CreateSeuratObject(counts = editdata, project = "covidsc", min.cells = 5, min.features = 100, meta.data = meta)
 
 #max ncount 12500
 #min ncount 125
@@ -237,13 +258,15 @@ plot2
 Abnormally large amounts of mitochondria likely means cell is dying (mitochondrial contamination)
 ```{r}
 mtplot <- plot(sort(seur$percent.mt), xlab='% mito', log='y', main='mito percent per cell (ordered)')
+
+abline(h=10, col = "red")
 ```
 
 
 Apply cut offs to reduce outliers
 ```{r}
 seur <- subset(seur, subset = 
-                 nCount_RNA > 125 
+                 nCount_RNA > 1000 
                & nCount_RNA < 12500 
                & nFeature_RNA > 150 
                & nFeature_RNA < 2500 
@@ -264,8 +287,9 @@ seur <- subset(seur, subset =
 
 ```{r}
 #alldata - 150370 cells
-#seur initial - 139196 cells
-#seur after subset - 84328 cells
+#editdata - 147116 cells
+#seur initial - 136918 cells
+#seur after subset - 39512 cells
 ```
 
 
@@ -298,6 +322,8 @@ length(VariableFeatures(seur))
 
 top10 <- head(VariableFeatures(seur), 10)
 
+top10
+
 
 varplot <- VariableFeaturePlot(seur)
 varplot2 <- LabelPoints(plot = varplot, points = top10, repel = TRUE)
@@ -307,9 +333,9 @@ varplot2
 
 ```
 
-#####################################
 
 
+scale data
 ```{r}
 
 #todo
@@ -317,11 +343,17 @@ varplot2
 #research and figure out good high low cut offs for noise
 #fix code below and fine tune to fit covid data
 
-all.genes <- rownames(pbmc)
-pbmc <- ScaleData(pbmc, features = all.genes)
+allgenes <- rownames(seur)
+seur <- ScaleData(seur, features = allgenes)
 ```
 
 
+
+
+#####################################
+
+
+PCA
 ```{r}
 pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
 ```
