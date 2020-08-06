@@ -355,48 +355,68 @@ seur <- ScaleData(seur, features = allgenes)
 
 PCA
 ```{r}
-pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+seur <- RunPCA(seur, features = VariableFeatures(object = seur))
 ```
 
 ```{r}
-print(pbmc[["pca"]], dims = 1:5, nfeatures = 5)
+print(seur[["pca"]], dims = 1:5, nfeatures = 5)
 ```
 
 ```{r}
-VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+VizDimLoadings(seur, dims = 1:2, reduction = "pca")
 ```
 
 ```{r}
-DimPlot(pbmc, reduction = "pca")
+DimPlot(seur, reduction = "pca")
 ```
 
 ```{r}
-DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
+DimHeatmap(seur, dims = 1, cells = 500, balanced = TRUE)
 ```
 
 ```{r}
-DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
+DimHeatmap(seur, dims = 26, cells = 500, balanced = TRUE)
 ```
 
 ```{r}
-ElbowPlot(pbmc)
+ElbowPlot(seur, ndims = 50)
+
+#PC cutoff around 15 or 22
 ```
 
+
+Default Louvain Clustering
+```{r}
+seur <- FindNeighbors(seur, reduction = "pca", dims = 1:22)
+seur <- FindClusters(seur, resolution = 0.8)
+```
+
+
+SLM clustering
+```{r}
+seur <- FindClusters(seur, resolution = 0.8, algorithm = 3)
+```
 
 
 ```{r}
-pbmc <- FindNeighbors(pbmc, dims = 1:10)
-pbmc <- FindClusters(pbmc, resolution = 0.5)
+head(Idents(seur), 5)
 ```
 
 
+Louvain
 ```{r}
-pbmc <- RunUMAP(pbmc, dims = 1:10)
+seur <- RunUMAP(seur, dims = 1:22)
 
-DimPlot(pbmc, reduction = "umap")
+DimPlot(seur, reduction = "umap")
 ```
 
 
+SLM
+```{r}
+seur <- RunUMAP(seur, dims = 1:22)
+
+DimPlot(seur, reduction = "umap")
+```
 
 
 
