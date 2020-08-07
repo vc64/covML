@@ -375,7 +375,7 @@ DimHeatmap(seur, dims = 1, cells = 500, balanced = TRUE)
 ```
 
 ```{r}
-DimHeatmap(seur, dims = 26, cells = 500, balanced = TRUE)
+DimHeatmap(seur, dims = 1:9, cells = 500, balanced = TRUE)
 ```
 
 ```{r}
@@ -384,23 +384,49 @@ ElbowPlot(seur, ndims = 50)
 #PC cutoff around 15 or 22
 ```
 
+Find neighbors
+```{r}
+seur <- FindNeighbors(seur, reduction = "pca", dims = 1:22)
+```
+
+
 
 Default Louvain Clustering
 ```{r}
-seur <- FindNeighbors(seur, reduction = "pca", dims = 1:22)
-seur <- FindClusters(seur, resolution = 0.8)
+seur <- FindClusters(seur, resolution = 0.4)
+
+
+
+#0.4 - 0.9303
+#0.5 - 0.9201
+#0.6 - 0.9116
+#0.7 - 0.9038
+#0.8 - 0.8960 -- umpa is good
+#0.9 - 0.8894
+#1.2 - 0.8711
+
+
+head(Idents(seur), 5)
+
+
+seur <- RunUMAP(seur, dims = 1:22)
+
+DimPlot(seur, reduction = "umap")
 ```
 
 
 SLM clustering
 ```{r}
 seur <- FindClusters(seur, resolution = 0.8, algorithm = 3)
-```
 
-
-```{r}
 head(Idents(seur), 5)
+
+
+seur <- RunUMAP(seur, dims = 1:22)
+
+DimPlot(seur, reduction = "umap")
 ```
+
 
 
 Louvain
